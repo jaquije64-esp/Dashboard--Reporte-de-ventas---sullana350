@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dashboard R200 - Tienda Sullana 350</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f4f8',
+                            100: '#d9e2ec',
+                            500: '#1f4e78',
+                            600: '#183d5f',
+                            700: '#122e48',
+                            800: '#0c1e30',
+                            900: '#060f19',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS CDN (XLSX Parser) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .touch-active:active {
+            transform: scale(0.98);
+        }
+    </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+    <!-- Sticky Header -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-600 to-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 ring-1 ring-white/20">
+                    <i data-lucide="store" class="w-5 h-5 text-white"></i>
+                </div>
+                <div>
+                    <div class="flex items-center space-x-2">
+                        <h1 class="text-base font-bold text-white tracking-wide leading-tight">SULLANA 350</h1>
+                        <span class="px-2 py-0.5 text-[10px] font-semibold bg-brand-500/30 text-blue-300 border border-brand-500/40 rounded-full">R200</span>
+                    </div>
+                    <p class="text-xs text-slate-400 flex items-center gap-1 mt-0.5">
+                        <i data-lucide="calendar" class="w-3 h-3 text-slate-500"></i>
+                        <span id="current-date-display">Miércoles, 15 Octubre 2025</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- View Mode Switch (Día / Acumulado) -->
+            <div class="flex bg-slate-800 p-1 rounded-xl border border-slate-700/80">
+                <button onclick="setViewPeriod('DIA')" id="btn-period-dia" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 bg-brand-500 text-white shadow-md">
+                    Día
+                </button>
+                <button onclick="setViewPeriod('ACUM')" id="btn-period-acum" class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
+                    Acumulado
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Body -->
+    <main class="flex-1 overflow-y-auto pb-20 pt-4 px-4">
+        <div class="max-w-7xl mx-auto space-y-4">
+
+            <!-- PROMINENT EXCEL UPLOADER PANEL -->
+            <div class="bg-gradient-to-r from-slate-900 via-brand-900/40 to-slate-900 border-2 border-dashed border-blue-500/50 hover:border-blue-400 rounded-2xl p-4 sm:p-5 shadow-xl transition-all relative overflow-hidden" id="drop-zone">
+                <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                    
+                    <div class="flex items-center gap-3.5 text-center sm:text-left">
+                        <div class="w-12 h-12 rounded-xl bg-blue-600/20 text-blue-400 border border-blue-500/30 flex items-center justify-center shrink-0 shadow-inner">
+                            <i data-lucide="file-up" class="w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-sm sm:text-base font-bold text-white flex items-center justify-center sm:justify-start gap-2">
+                                Cargar Reporte Diario de Ventas (.xls / .xlsx)
+                                <span class="px-2 py-0.5 text-[10px] bg-emerald-500/20 text-emerald-300 rounded-md border border-emerald-500/30 font-medium">Hoja DATA</span>
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-0.5" id="upload-status-text">
+                                Arrastra tu archivo Excel descargado o haz clic en el botón para seleccionar
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-center gap-2 w-full sm:w-auto">
+                        <input type="file" id="excel-file-input" accept=".xls,.xlsx" class="hidden" onchange="handleFileSelect(event)">
+                        <button onclick="document.getElementById('excel-file-input').click()" class="w-full sm:w-auto px-4 py-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 transition-all">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            <span>Subir Archivo Excel</span>
+                        </button>
+                        <button onclick="loadDemoData()" class="w-full sm:w-auto px-3 py-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-300 font-semibold text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 transition-all">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-400"></i>
+                            <span>Cargar Demo</span>
+                        </button>
+                    </div>
+
+                </div>
+
+                <!-- Alert banner if loaded -->
+                <div id="file-info-banner" class="hidden mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-emerald-400 font-medium">
+                    <span class="flex items-center gap-1.5">
+                        <i data-lucide="check-circle-2" class="w-4 h-4 text-emerald-400"></i>
+                        <span id="loaded-filename-text">Archivo cargado exitosamente.</span>
+                    </span>
+                    <span class="text-slate-400 text-[11px]" id="loaded-timestamp-text">Procesado localmente</span>
+                </div>
+            </div>
+
+            <!-- Category Selector Pills -->
+            <div class="flex space-x-2 overflow-x-auto hide-scrollbar py-1">
+                <button onclick="setFilterGroup('ALL')" id="pill-ALL" class="pill-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-blue-600 text-white shadow-lg shadow-blue-600/25 transition-all">
+                    🌐 Toda la Tienda
+                </button>
+                <button onclick="setFilterGroup('PGC')" id="pill-PGC" class="pill-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60 transition-all">
+                    🛒 PGC
+                </button>
+                <button onclick="setFilterGroup('PERECIBLES')" id="pill-PERECIBLES" class="pill-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60 transition-all">
+                    🥩 Perecibles
+                </button>
+                <button onclick="setFilterGroup('NON FOOD')" id="pill-NON FOOD" class="pill-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60 transition-all">
+                    📺 Non Food
+                </button>
+            </div>
+
+            <!-- KPI Cards Grid -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                
+                <!-- Card 1: Venta Real vs Plan -->
+                <div class="bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl p-3.5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-400">
+                        <span class="text-xs font-medium uppercase tracking-wider text-slate-400" id="kpi-1-title">Venta del Día</span>
+                        <div class="p-1.5 bg-blue-500/10 rounded-lg text-blue-400">
+                            <i data-lucide="dollar-sign" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-xl font-extrabold text-white tracking-tight" id="kpi-venta-val">S/ 144,673</div>
+                        <div class="flex items-center justify-between mt-1 text-xs">
+                            <span class="text-slate-400">Plan: <span id="kpi-plan-val" class="text-slate-300 font-medium">S/ 166,891</span></span>
+                            <span id="kpi-cumpl-badge" class="px-2 py-0.5 rounded-full font-bold text-[11px] bg-red-500/20 text-red-400 border border-red-500/30">
+                                86.7%
+                            </span>
+                        </div>
+                    </div>
+                    <!-- Progress Bar -->
+                    <div class="w-full bg-slate-700/50 h-1.5 rounded-full mt-3 overflow-hidden">
+                        <div id="kpi-progress-bar" class="bg-red-500 h-full rounded-full transition-all duration-500" style="width: 86.7%;"></div>
+                    </div>
+                </div>
+
+                <!-- Card 2: Crecimiento vs AA -->
+                <div class="bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl p-3.5 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-400">
+                        <span class="text-xs font-medium uppercase tracking-wider text-slate-400" id="kpi-2-title">vs Año Anterior</span>
+                        <div class="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400">
+                            <i data-lucide="trending-up" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-xl font-extrabold text-white tracking-tight" id="kpi-aa-val">S/ 141,526</div>
+                        <div class="flex items-center justify-between mt-1 text-xs">
+                            <span class="text-slate-400">Var. Venta AA</span>
+                            <span id="kpi-inc-badge" class="px-2 py-0.5 rounded-full font-bold text-[11px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                +2.2%
+                            </span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-3 pt-1 border-t border-slate-700/40 flex justify-between">
+                        <span>Dif. Moneda:</span>
+                        <span id="kpi-diff-val" class="font-semibold text-emerald-400">+S/ 3,147</span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Transacciones -->
+                <div class="bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl p-3.5 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-400">
+                        <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Transacciones</span>
+                        <div class="p-1.5 bg-purple-500/10 rounded-lg text-purple-400">
+                            <i data-lucide="shopping-bag" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-xl font-extrabold text-white tracking-tight" id="kpi-trans-val">44,126</div>
+                        <div class="flex items-center justify-between mt-1 text-xs">
+                            <span class="text-slate-400">AA: <span id="kpi-trans-aa" class="text-slate-300">44,250</span></span>
+                            <span id="kpi-trans-var" class="font-semibold text-red-400">-0.3%</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-3 pt-1 border-t border-slate-700/40 flex justify-between">
+                        <span>Flujo Clientes:</span>
+                        <span class="text-slate-300 font-medium">Estable</span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Ticket Promedio -->
+                <div class="bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl p-3.5 shadow-sm flex flex-col justify-between">
+                    <div class="flex items-center justify-between text-slate-400">
+                        <span class="text-xs font-medium uppercase tracking-wider text-slate-400">Ticket Promedio</span>
+                        <div class="p-1.5 bg-amber-500/10 rounded-lg text-amber-400">
+                            <i data-lucide="receipt" class="w-4 h-4"></i>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="text-xl font-extrabold text-white tracking-tight" id="kpi-ticket-val">S/ 65</div>
+                        <div class="flex items-center justify-between mt-1 text-xs">
+                            <span class="text-slate-400">AA: <span id="kpi-ticket-aa" class="text-slate-300">S/ 64</span></span>
+                            <span id="kpi-ticket-var" class="font-semibold text-emerald-400">+1.6%</span>
+                        </div>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mt-3 pt-1 border-t border-slate-700/40 flex justify-between">
+                        <span>Gasto / Cliente:</span>
+                        <span class="text-emerald-400 font-medium">Mayor</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Visual Charts Section -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                
+                <!-- Main Bar Chart: Real vs Plan -->
+                <div class="lg:col-span-2 bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-blue-400"></i>
+                                Comparativo Venta vs Plan por Categoría
+                            </h2>
+                            <p class="text-xs text-slate-400">Valores expresados en Miles de Soles (S/)</p>
+                        </div>
+                        <span class="text-[11px] px-2 py-0.5 rounded bg-slate-700/80 text-slate-300 font-mono" id="chart-period-tag">Día</span>
+                    </div>
+                    <div class="relative h-60 w-full">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Donut Chart: Participation -->
+                <div class="bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl p-4 flex flex-col justify-between">
+                    <div class="flex items-center justify-between mb-2">
+                        <h2 class="text-sm font-bold text-white flex items-center gap-2">
+                            <i data-lucide="pie-chart" class="w-4 h-4 text-purple-400"></i>
+                            Participación %
+                        </h2>
+                        <span class="text-xs text-slate-400">Grupos Principales</span>
+                    </div>
+                    <div class="relative h-48 w-full my-auto flex items-center justify-center">
+                        <canvas id="donutChart"></canvas>
+                    </div>
+                    <div class="grid grid-cols-3 gap-1 text-center pt-2 border-t border-slate-700/50 text-[11px]">
+                        <div>
+                            <span class="block text-amber-400 font-bold" id="part-pgc-val">38.2%</span>
+                            <span class="text-slate-400">PGC</span>
+                        </div>
+                        <div>
+                            <span class="block text-emerald-400 font-bold" id="part-perecibles-val">24.1%</span>
+                            <span class="text-slate-400">Perecibles</span>
+                        </div>
+                        <div>
+                            <span class="block text-blue-400 font-bold" id="part-nonfood-val">37.6%</span>
+                            <span class="text-slate-400">Non Food</span>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Search & Interactive Table Section -->
+            <div class="bg-slate-800/70 backdrop-blur-sm border border-slate-700/60 rounded-2xl overflow-hidden shadow-lg">
+                
+                <!-- Table Header Controls -->
+                <div class="p-3.5 border-b border-slate-700/60 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between bg-slate-800/40">
+                    <div class="relative flex-1">
+                        <i data-lucide="search" class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2"></i>
+                        <input type="text" id="table-search" oninput="handleSearch()" placeholder="Buscar por código (J01) o categoría (Ej. Abarrotes)..." 
+                               class="w-full bg-slate-900/90 border border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all">
+                    </div>
+                    <div class="flex items-center justify-between sm:justify-end gap-2 text-xs">
+                        <span class="text-slate-400 text-[11px]" id="table-row-count">Mostrando ítems</span>
+                        <button onclick="resetSort()" class="px-2.5 py-1.5 rounded-lg bg-slate-700/60 hover:bg-slate-700 text-slate-300 flex items-center gap-1">
+                            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                            <span>Restablecer</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Responsive Table Container -->
+                <div class="overflow-x-auto max-h-[500px] overflow-y-auto hide-scrollbar">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead class="bg-slate-900/90 text-slate-400 uppercase tracking-wider text-[10px] sticky top-0 z-10 backdrop-blur-md">
+                            <tr>
+                                <th class="p-3 font-semibold border-b border-slate-700/60 cursor-pointer hover:text-white" onclick="sortTable('id')">
+                                    <div class="flex items-center gap-1">
+                                        <span>Código</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3 font-semibold border-b border-slate-700/60 cursor-pointer hover:text-white" onclick="sortTable('name')">
+                                    <div class="flex items-center gap-1">
+                                        <span>Categoría / Jerarquía</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3 font-semibold border-b border-slate-700/60 text-right cursor-pointer hover:text-white" onclick="sortTable('val')">
+                                    <div class="flex items-center justify-end gap-1">
+                                        <span id="th-val-title">Venta Real</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3 font-semibold border-b border-slate-700/60 text-right cursor-pointer hover:text-white" onclick="sortTable('plan')">
+                                    <div class="flex items-center justify-end gap-1">
+                                        <span id="th-plan-title">Plan Meta</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3 font-semibold border-b border-slate-700/60 text-center cursor-pointer hover:text-white" onclick="sortTable('cumpl')">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>% Cumpl.</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                                <th class="p-3 font-semibold border-b border-slate-700/60 text-center cursor-pointer hover:text-white" onclick="sortTable('inc')">
+                                    <div class="flex items-center justify-center gap-1">
+                                        <span>% Inc AA</span>
+                                        <i data-lucide="arrow-up-down" class="w-3 h-3"></i>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/40 text-slate-300 font-mono text-[11px]" id="table-body">
+                            <!-- Dynamic Content -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Table Legend Footer -->
+                <div class="p-3 bg-slate-900/60 border-t border-slate-700/60 flex flex-wrap items-center justify-between text-[10px] text-slate-400 gap-2">
+                    <div class="flex items-center space-x-3">
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> &ge;100% Meta</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> 85%-99% Regular</span>
+                        <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-red-500"></span> &lt;85% Alerta</span>
+                    </div>
+                    <span class="text-slate-500">Procesado automáticamente para Sullana 350</span>
+                </div>
+
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-md border-t border-slate-800 z-50 py-2">
+        <div class="max-w-md mx-auto flex justify-around items-center text-[10px]">
+            <button onclick="scrollToTop()" class="flex flex-col items-center text-blue-400 font-semibold touch-active">
+                <i data-lucide="layout-dashboard" class="w-5 h-5 mb-0.5"></i>
+                <span>Dashboard</span>
+            </button>
+            <button onclick="document.getElementById('excel-file-input').click()" class="flex flex-col items-center text-slate-400 hover:text-slate-200 touch-active">
+                <i data-lucide="upload" class="w-5 h-5 mb-0.5"></i>
+                <span>Cargar Excel</span>
+            </button>
+            <button onclick="toggleSummaryModal()" class="flex flex-col items-center text-slate-400 hover:text-slate-200 touch-active">
+                <i data-lucide="file-text" class="w-5 h-5 mb-0.5"></i>
+                <span>Resumen</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Modal Resumen Rápido -->
+    <div id="summary-modal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-2xl">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                    <i data-lucide="info" class="w-4 h-4 text-blue-400"></i>
+                    Diagnóstico R200 - Sullana
+                </h3>
+                <button onclick="toggleSummaryModal()" class="text-slate-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="text-xs space-y-2 text-slate-300 leading-relaxed" id="modal-summary-content">
+                <p>• <strong class="text-emerald-400">Perecibles:</strong> Lidera cumplimiento del día (+101%) impulsado por Frutas y Verduras.</p>
+                <p>• <strong class="text-amber-400">PGC:</strong> Registra un 86% de cumplimiento frente a la meta diaria.</p>
+                <p>• <strong class="text-red-400">Non Food:</strong> Presenta la brecha más amplia con 78% de cumplimiento.</p>
+            </div>
+            <button onclick="toggleSummaryModal()" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition-all">
+                Cerrar
+            </button>
+        </div>
+    </div>
+
+    <!-- Data Engine & Script -->
+    <script>
+        // Datos Iniciales de Muestra (Sullana 350)
+        const initialDemoData = [
+            // PGC
+            { id: "J0101", name: "ABARROTES", group: "PGC", type: "sub", dia: 32786, planDia: 37088, aaDia: 29259, acum: 555682, planAcum: 598199, aaAcum: 561436, part: 19.22, trans: 20789, ticket: 27 },
+            { id: "J0102", name: "LIQUIDOS", group: "PGC", type: "sub", dia: 5072, planDia: 6657, aaDia: 4406, acum: 108789, planAcum: 107391, aaAcum: 99587, part: 3.76, trans: 10401, ticket: 10 },
+            { id: "J01", name: "PGC COMESTIBLE", group: "PGC", type: "header", dia: 37858, planDia: 43745, aaDia: 33665, acum: 664471, planAcum: 705590, aaAcum: 661023, part: 22.98, trans: 25927, ticket: 26 },
+            { id: "J0201", name: "LAVADO Y MANTENIMIENTO", group: "PGC", type: "sub", dia: 5930, planDia: 7841, aaDia: 7123, acum: 128777, planAcum: 145955, aaAcum: 132297, part: 4.45, trans: 5684, ticket: 23 },
+            { id: "J0202", name: "PERFUMERIA", group: "PGC", type: "sub", dia: 13787, planDia: 15256, aaDia: 12774, acum: 286190, planAcum: 283918, aaAcum: 255970, part: 9.90, trans: 8835, ticket: 32 },
+            { id: "J02", name: "PGC NO COMESTIBLE", group: "PGC", type: "header", dia: 20827, planDia: 24495, aaDia: 21465, acum: 438567, planAcum: 456059, aaAcum: 411302, part: 15.17, trans: 12531, ticket: 35 },
+            { id: "TOTAL_PGC", name: "TOTAL PGC", group: "PGC", type: "total", dia: 58685, planDia: 68240, aaDia: 55130, acum: 1103038, planAcum: 1161649, aaAcum: 1072325, part: 38.15, trans: 19229, ticket: 30 },
+
+            // PERECIBLES
+            { id: "J03", name: "CARNES Y PESCADOS", group: "PERECIBLES", type: "sub", dia: 12172, planDia: 10772, aaDia: 10029, acum: 209545, planAcum: 215607, aaAcum: 200374, part: 7.25, trans: 7483, ticket: 28 },
+            { id: "J04", name: "FRUTAS Y VERDURAS", group: "PERECIBLES", type: "sub", dia: 7853, planDia: 6832, aaDia: 6179, acum: 141847, planAcum: 132753, aaAcum: 116531, part: 4.91, trans: 10414, ticket: 14 },
+            { id: "J0501", name: "FIAMBRERIA", group: "PERECIBLES", type: "sub", dia: 3738, planDia: 3830, aaDia: 3140, acum: 74027, planAcum: 72179, aaAcum: 66670, part: 2.56, trans: 0, ticket: 0 },
+            { id: "J05", name: "FLC (FIAMBRERIA/LACTEOS)", group: "PERECIBLES", type: "header", dia: 11790, planDia: 12491, aaDia: 10749, acum: 242104, planAcum: 234019, aaAcum: 214376, part: 8.37, trans: 13617, ticket: 18 },
+            { id: "J06", name: "PANADERIA Y PASTELERIA", group: "PERECIBLES", type: "sub", dia: 2883, planDia: 3970, aaDia: 3499, acum: 62461, planAcum: 66314, aaAcum: 58785, part: 2.16, trans: 5645, ticket: 11 },
+            { id: "J07", name: "PLATOS PREPARADOS", group: "PERECIBLES", type: "sub", dia: 2141, planDia: 2167, aaDia: 2086, acum: 41138, planAcum: 42822, aaAcum: 37418, part: 1.42, trans: 3112, ticket: 13 },
+            { id: "TOTAL_PERECIBLES", name: "TOTAL PERECIBLES", group: "PERECIBLES", type: "total", dia: 40577, planDia: 40062, aaDia: 35681, acum: 771122, planAcum: 763694, aaAcum: 694154, part: 24.11, trans: 8054, ticket: 17 },
+
+            // NON FOOD
+            { id: "J08", name: "VESTUARIO", group: "NON FOOD", type: "sub", dia: 10856, planDia: 13703, aaDia: 13738, acum: 238860, planAcum: 236042, aaAcum: 198361, part: 8.26, trans: 6177, ticket: 39 },
+            { id: "J09", name: "HOGAR", group: "NON FOOD", type: "sub", dia: 10635, planDia: 13170, aaDia: 12943, acum: 204288, planAcum: 245834, aaAcum: 226680, part: 7.06, trans: 4136, ticket: 49 },
+            { id: "J10", name: "BAZAR", group: "NON FOOD", type: "sub", dia: 4502, planDia: 5371, aaDia: 5096, acum: 116885, planAcum: 110979, aaAcum: 110164, part: 4.04, trans: 5079, ticket: 23 },
+            { id: "J11", name: "ELECTROHOGAR", group: "NON FOOD", type: "sub", dia: 22898, planDia: 30175, aaDia: 21788, acum: 526751, planAcum: 612940, aaAcum: 577055, part: 18.22, trans: 1655, ticket: 318 },
+            { id: "J1105", name: "GARANTIA EXTENDIDA", group: "NON FOOD", type: "sub", dia: 344, planDia: 1039, aaDia: 1397, acum: 22731, planAcum: 22132, aaAcum: 23545, part: 0.79, trans: 161, ticket: 141 },
+            { id: "TOTAL_NON_FOOD", name: "TOTAL NON FOOD", group: "NON FOOD", type: "total", dia: 49235, planDia: 63458, aaDia: 54961, acum: 1109515, planAcum: 1227927, aaAcum: 1135805, part: 37.58, trans: 3442, ticket: 114 },
+
+            // GRAND TOTAL
+            { id: "TOTAL_TIENDA", name: "TOTAL TIENDA", group: "TOTAL", type: "grand_total", dia: 144673, planDia: 166891, aaDia: 141526, acum: 2891626, planAcum: 3058959, aaAcum: 2816950, part: 100.0, trans: 44126, ticket: 65 }
+        ];
+
+        let storeData = JSON.parse(JSON.stringify(initialDemoData));
+
+        // State variables
+        let currentPeriod = 'DIA';
+        let currentGroup = 'ALL';
+        let searchQuery = '';
+        let sortField = 'id';
+        let sortDirection = 'asc';
+
+        let barChartInstance = null;
+        let donutChartInstance = null;
+
+        // Formatters
+        const fmtNum = num => new Intl.NumberFormat('es-PE').format(Math.round(num || 0));
+        const fmtCurr = num => 'S/ ' + fmtNum(num);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            setupDragAndDrop();
+            updateDashboard();
+        });
+
+        // Setup Drag & Drop File Upload
+        function setupDragAndDrop() {
+            const dropZone = document.getElementById('drop-zone');
+
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }, false);
+            });
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.add('border-blue-400', 'bg-blue-900/30');
+                }, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, () => {
+                    dropZone.classList.remove('border-blue-400', 'bg-blue-900/30');
+                }, false);
+            });
+
+            dropZone.addEventListener('drop', e => {
+                const files = e.dataTransfer.files;
+                if (files.length > 0) {
+                    processExcelFile(files[0]);
+                }
+            }, false);
+        }
+
+        // Handle File Input Change
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processExcelFile(file);
+            }
+        }
+
+        // Process uploaded Excel File using SheetJS
+        function processExcelFile(file) {
+            const reader = new FileReader();
+            
+            document.getElementById('upload-status-text').innerText = 'Procesando archivo Excel...';
+
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+
+                    // Find DATA sheet or use first sheet
+                    const sheetName = workbook.SheetNames.includes('DATA') ? 'DATA' : workbook.SheetNames[0];
+                    const sheet = workbook.Sheets[sheetName];
+
+                    if (!sheet) {
+                        alert('No se encontró información en la hoja del archivo.');
+                        return;
+                    }
+
+                    // Convert to JSON array of rows
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    // Parse Data Rows matching R200 structure
+                    const parsedData = parseR200Rows(rows);
+
+                    if (parsedData && parsedData.length > 0) {
+                        storeData = parsedData;
+                        
+                        // Update Banner
+                        document.getElementById('upload-status-text').innerText = `Excel procesado correctamente (${file.name})`;
+                        document.getElementById('loaded-filename-text').innerText = `Archivo activo: ${file.name}`;
+                        document.getElementById('loaded-timestamp-text').innerText = new Date().toLocaleTimeString();
+                        document.getElementById('file-info-banner').classList.remove('hidden');
+
+                        updateDashboard();
+                    } else {
+                        alert('No se pudieron extraer las jerarquías de la plantilla R200. Verifique el formato.');
+                    }
+                } catch (err) {
+                    console.error(err);
+                    alert('Error al leer el archivo Excel. Asegúrese de subir un archivo .xls o .xlsx válido.');
+                }
+            };
+
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Parse Excel Sheet rows based on R200 Layout
+        function parseR200Rows(rows) {
+            const newStoreData = [];
+
+            // Helper to clean numeric values
+            const clean = val => {
+                if (typeof val === 'number') return val;
+                if (!val) return 0;
+                const cleaned = val.toString().replace(/[^0-9.-]+/g, "");
+                return parseFloat(cleaned) || 0;
+            };
+
+            // Search row by row for matching Hierarchy Codes or Names
+            rows.forEach(row => {
+                if (!row || row.length < 5) return;
+
+                const code = row[0] ? row[0].toString().trim() : '';
+                const name = row[1] ? row[1].toString().trim() : '';
+
+                // Map row data if it corresponds to an R200 entry
+                let matchedItem = null;
+
+                const existingMeta = initialDemoData.find(item => 
+                    (code && item.id === code) || 
+                    (name && item.name.toUpperCase() === name.toUpperCase())
+                );
+
+                if (existingMeta) {
+                    matchedItem = {
+                        id: existingMeta.id,
+                        name: existingMeta.name,
+                        group: existingMeta.group,
+                        type: existingMeta.type,
+                        dia: clean(row[2]),        // Col C: Este Año Día
+                        planDia: clean(row[3]),    // Col D: Plan Día
+                        aaDia: clean(row[5]),      // Col F: Año Anterior Día
+                        acum: clean(row[8]),       // Col I or M: Este Año Acum
+                        planAcum: clean(row[9]),   // Col J or N: Plan Acum
+                        aaAcum: clean(row[11]),    // Col L or P: Año Anterior Acum
+                        part: clean(row[13]),      // % Part
+                        trans: clean(row[14] || row[row.length - 4]), // Transacciones
+                        ticket: clean(row[16] || row[row.length - 2])  // Ticket Promedio
+                    };
+                    newStoreData.push(matchedItem);
+                }
+            });
+
+            return newStoreData.length > 5 ? newStoreData : null;
+        }
+
+        function loadDemoData() {
+            storeData = JSON.parse(JSON.stringify(initialDemoData));
+            document.getElementById('upload-status-text').innerText = 'Usando datos de muestra por defecto';
+            document.getElementById('file-info-banner').classList.add('hidden');
+            updateDashboard();
+        }
+
+        function setViewPeriod(period) {
+            currentPeriod = period;
+            const btnDia = document.getElementById('btn-period-dia');
+            const btnAcum = document.getElementById('btn-period-acum');
+
+            if (period === 'DIA') {
+                btnDia.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-500 text-white shadow-md';
+                btnAcum.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200';
+            } else {
+                btnAcum.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg bg-brand-500 text-white shadow-md';
+                btnDia.className = 'px-3 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200';
+            }
+            updateDashboard();
+        }
+
+        function setFilterGroup(group) {
+            currentGroup = group;
+            document.querySelectorAll('.pill-btn').forEach(btn => {
+                btn.className = 'pill-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-slate-800/80 text-slate-300 hover:bg-slate-800 border border-slate-700/60 transition-all';
+            });
+
+            const activePill = document.getElementById(`pill-${group}`);
+            if (activePill) {
+                activePill.className = 'pill-btn px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap bg-blue-600 text-white shadow-lg shadow-blue-600/25 transition-all';
+            }
+            updateDashboard();
+        }
+
+        function handleSearch() {
+            searchQuery = document.getElementById('table-search').value.toLowerCase().trim();
+            renderTable();
+        }
+
+        function updateDashboard() {
+            updateKPIs();
+            renderTable();
+            renderCharts();
+        }
+
+        function updateKPIs() {
+            const isDia = currentPeriod === 'DIA';
+            let targetRow = storeData.find(d => d.id === (currentGroup === 'ALL' ? 'TOTAL_TIENDA' : `TOTAL_${currentGroup}`)) || storeData.find(d => d.id === 'TOTAL_TIENDA');
+
+            if (!targetRow) return;
+
+            const realVal = isDia ? targetRow.dia : targetRow.acum;
+            const planVal = isDia ? targetRow.planDia : targetRow.planAcum;
+            const aaVal = isDia ? targetRow.aaDia : targetRow.aaAcum;
+
+            const cumpl = planVal > 0 ? ((realVal / planVal) * 100).toFixed(1) : '0.0';
+            const incAA = aaVal > 0 ? (((realVal - aaVal) / aaVal) * 100).toFixed(1) : '0.0';
+            const diffMoneda = realVal - aaVal;
+
+            document.getElementById('kpi-1-title').innerText = isDia ? 'Venta del Día' : 'Venta Acumulada';
+            document.getElementById('kpi-2-title').innerText = isDia ? 'vs Año Ant. (Día)' : 'vs Año Ant. (Acum)';
+            document.getElementById('chart-period-tag').innerText = isDia ? 'Día' : 'Acumulado';
+
+            document.getElementById('kpi-venta-val').innerText = fmtCurr(realVal);
+            document.getElementById('kpi-plan-val').innerText = fmtCurr(planVal);
+            document.getElementById('kpi-aa-val').innerText = fmtCurr(aaVal);
+
+            const badgeCumpl = document.getElementById('kpi-cumpl-badge');
+            badgeCumpl.innerText = cumpl + '%';
+            badgeCumpl.className = `px-2 py-0.5 rounded-full font-bold text-[11px] ${cumpl >= 100 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : cumpl >= 85 ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`;
+
+            const progressBar = document.getElementById('kpi-progress-bar');
+            progressBar.style.width = Math.min(parseFloat(cumpl), 100) + '%';
+            progressBar.className = `h-full rounded-full transition-all duration-500 ${cumpl >= 100 ? 'bg-emerald-500' : cumpl >= 85 ? 'bg-amber-500' : 'bg-red-500'}`;
+
+            const badgeInc = document.getElementById('kpi-inc-badge');
+            badgeInc.innerText = (parseFloat(incAA) >= 0 ? '+' : '') + incAA + '%';
+            badgeInc.className = `px-2 py-0.5 rounded-full font-bold text-[11px] ${parseFloat(incAA) >= 0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/20 text-red-400 border border-red-500/30'}`;
+
+            document.getElementById('kpi-diff-val').innerText = (diffMoneda >= 0 ? '+S/ ' : '-S/ ') + fmtNum(Math.abs(diffMoneda));
+            document.getElementById('kpi-diff-val').className = `font-semibold ${diffMoneda >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+
+            document.getElementById('kpi-trans-val').innerText = fmtNum(targetRow.trans);
+            document.getElementById('kpi-ticket-val').innerText = fmtCurr(targetRow.ticket);
+        }
+
+        function renderTable() {
+            const isDia = currentPeriod === 'DIA';
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+
+            let filtered = storeData.filter(item => {
+                const matchesGroup = (currentGroup === 'ALL') || (item.group === currentGroup) || (item.id === 'TOTAL_TIENDA');
+                const matchesSearch = item.name.toLowerCase().includes(searchQuery) || item.id.toLowerCase().includes(searchQuery);
+                return matchesGroup && matchesSearch;
+            });
+
+            document.getElementById('table-row-count').innerText = `Mostrando ${filtered.length} ítems`;
+
+            filtered.forEach(item => {
+                const realVal = isDia ? item.dia : item.acum;
+                const planVal = isDia ? item.planDia : item.planAcum;
+                const aaVal = isDia ? item.aaDia : item.aaAcum;
+
+                const cumpl = planVal > 0 ? ((realVal / planVal) * 100) : 0;
+                const inc = aaVal > 0 ? (((realVal - aaVal) / aaVal) * 100) : 0;
+
+                let badgeClass = 'text-red-400 bg-red-500/10 border-red-500/30';
+                if (cumpl >= 100) badgeClass = 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
+                else if (cumpl >= 85) badgeClass = 'text-amber-400 bg-amber-500/10 border-amber-500/30';
+
+                let rowBg = 'hover:bg-slate-800/50';
+                if (item.type === 'header') rowBg = 'bg-slate-800/80 font-bold text-slate-100';
+                else if (item.type === 'total') rowBg = 'bg-brand-900/60 font-extrabold text-blue-200 border-t border-brand-500/30';
+                else if (item.type === 'grand_total') rowBg = 'bg-slate-900 font-extrabold text-amber-300 border-t-2 border-slate-700';
+
+                const tr = document.createElement('tr');
+                tr.className = `transition-colors border-b border-slate-700/30 ${rowBg}`;
+                tr.innerHTML = `
+                    <td class="p-3 font-mono text-[10px] text-slate-400">${item.id}</td>
+                    <td class="p-3 font-semibold text-slate-200">${item.name}</td>
+                    <td class="p-3 text-right font-medium">${fmtCurr(realVal)}</td>
+                    <td class="p-3 text-right text-slate-400">${fmtCurr(planVal)}</td>
+                    <td class="p-3 text-center">
+                        <span class="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeClass}">
+                            ${cumpl.toFixed(1)}%
+                        </span>
+                    </td>
+                    <td class="p-3 text-center font-semibold ${inc >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+                        ${inc >= 0 ? '+' : ''}${inc.toFixed(1)}%
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCharts() {
+            const isDia = currentPeriod === 'DIA';
+            const chartItems = storeData.filter(d => d.type === 'sub' && (currentGroup === 'ALL' || d.group === currentGroup));
+
+            const labels = chartItems.map(d => d.name.length > 12 ? d.name.substring(0, 10) + '..' : d.name);
+            const realData = chartItems.map(d => isDia ? d.dia / 1000 : d.acum / 1000);
+            const planData = chartItems.map(d => isDia ? d.planDia / 1000 : d.planAcum / 1000);
+
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            if (barChartInstance) barChartInstance.destroy();
+
+            barChartInstance = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Venta Real (kS/)', data: realData, backgroundColor: '#3b82f6', borderRadius: 4, barThickness: 10 },
+                        { label: 'Plan Meta (kS/)', data: planData, backgroundColor: '#475569', borderRadius: 4, barThickness: 10 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+                    scales: {
+                        y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 9 } } },
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 9 } } }
+                    }
+                }
+            });
+
+            const ctxDonut = document.getElementById('donutChart').getContext('2d');
+            if (donutChartInstance) donutChartInstance.destroy();
+
+            const pgcRow = storeData.find(d => d.id === 'TOTAL_PGC');
+            const perecRow = storeData.find(d => d.id === 'TOTAL_PERECIBLES');
+            const nonFoodRow = storeData.find(d => d.id === 'TOTAL_NON_FOOD');
+
+            const pgcVal = pgcRow ? (isDia ? pgcRow.dia : pgcRow.acum) : 1;
+            const perecVal = perecRow ? (isDia ? perecRow.dia : perecRow.acum) : 1;
+            const nonFoodVal = nonFoodRow ? (isDia ? nonFoodRow.dia : nonFoodRow.acum) : 1;
+            const total = pgcVal + perecVal + nonFoodVal;
+
+            const pgcPart = ((pgcVal / total) * 100).toFixed(1);
+            const perecPart = ((perecVal / total) * 100).toFixed(1);
+            const nonFoodPart = ((nonFoodVal / total) * 100).toFixed(1);
+
+            document.getElementById('part-pgc-val').innerText = pgcPart + '%';
+            document.getElementById('part-perecibles-val').innerText = perecPart + '%';
+            document.getElementById('part-nonfood-val').innerText = nonFoodPart + '%';
+
+            donutChartInstance = new Chart(ctxDonut, {
+                type: 'doughnut',
+                data: {
+                    labels: ['PGC', 'Perecibles', 'Non Food'],
+                    datasets: [{
+                        data: [pgcPart, perecPart, nonFoodPart],
+                        backgroundColor: ['#fbbf24', '#10b981', '#3b82f6'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    cutout: '70%'
+                }
+            });
+        }
+
+        function sortTable(field) {
+            if (sortField === field) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortField = field;
+                sortDirection = 'desc';
+            }
+
+            const isDia = currentPeriod === 'DIA';
+
+            storeData.sort((a, b) => {
+                let valA = a[field];
+                let valB = b[field];
+
+                if (field === 'val') {
+                    valA = isDia ? a.dia : a.acum;
+                    valB = isDia ? b.dia : b.acum;
+                } else if (field === 'plan') {
+                    valA = isDia ? a.planDia : a.planAcum;
+                    valB = isDia ? b.planDia : b.planAcum;
+                } else if (field === 'cumpl') {
+                    valA = isDia ? (a.dia / a.planDia) : (a.acum / a.planAcum);
+                    valB = isDia ? (b.dia / b.planDia) : (b.acum / b.planAcum);
+                }
+
+                if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            renderTable();
+        }
+
+        function resetSort() {
+            sortField = 'id';
+            sortDirection = 'asc';
+            document.getElementById('table-search').value = '';
+            searchQuery = '';
+            updateDashboard();
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function toggleSummaryModal() {
+            const modal = document.getElementById('summary-modal');
+            modal.classList.toggle('hidden');
+        }
+    </script>
+</body>
+</html>
